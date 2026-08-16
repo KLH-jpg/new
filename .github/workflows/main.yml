@@ -1,0 +1,46 @@
+name: Backtest EUR/USD Strategy
+
+on:
+  workflow_dispatch:
+    inputs:
+      years:
+        description: "Years of hourly history to test against"
+        required: false
+        default: "2"
+
+permissions:
+  contents: write
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install websockets
+
+      - name: Run backtest
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: python backtest_forex.py --years "${{ github.event.inputs.years }}" --outdir backtest_results
+
+      - name: Upload full results as an artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backtest-results
+          path: backtest_results/
+
+      - name: Commit summary back to repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add backtest_results/latest_summary.md
+          git diff --staged --quiet || git commit -m "Backtest results: $(date -u +'%Y-%m-%d %H:%M UTC')"
+          git push
